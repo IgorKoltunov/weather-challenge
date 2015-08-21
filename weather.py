@@ -82,7 +82,7 @@ def main():
                 displayString = 'The current temperature in {}, {} {} is {}F'.format(city, state, userZipcode, temperature)
                 print(displayString)
     if highestDisplayString:
-        print(highestDisplayString)   
+        print('\n' + highestDisplayString)   
     
         
 main()
