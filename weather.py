@@ -30,12 +30,13 @@ def get_weather_by_zipcode(zipcode):
     resultsDict = dict()
          
     results = get(apiCallURL)
+    # ToDo: Need to handle a bad URL/Server down. Causes ugly error right now.
     
     resultsDict =  results.json()
     return resultsDict
 
 def is_valid_weather(jsonDict):
-    '''original function written by Mark'''
+    '''original function written was Mark P.'''
     if jsonDict is None:
         return False
     if 'current_observation' not in jsonDict:
@@ -49,6 +50,16 @@ def is_valid_weather(jsonDict):
 
     # All conditions met
     return True
+
+def is_valid_zipcode(zipcode):
+    
+    if zipcode.isdigit() == False:
+        return False
+    if len(zipcode) != 5:
+        return False
+    
+    # All conditions met
+    return True
     
 def main():
     
@@ -59,19 +70,19 @@ def main():
     userZipcodeString = input('Enter a comma separated list of zipcodes: ')
     for str in userZipcodeString.split(','):
         userZipcode = str.strip()
-        userZipcodeList.append(userZipcode)
+        if userZipcode: userZipcodeList.append(userZipcode)
      
     for userZipcode in userZipcodeList:
         
-        # return error if non numeric input 
-        if userZipcode.isdigit() == False: 
-            print('Error: non digit zipcode entered:', userZipcode)
+        # return error if unexpected format
+        if is_valid_zipcode(userZipcode) == False: 
+            print('Error: Unexpected zipcode fomrat: "' + userZipcode +'"')
         else:
             localWeatherDict = get_weather_by_zipcode(userZipcode)
             
             # return error if dict contents are unexpected 
             if is_valid_weather(localWeatherDict) == False:
-                print('Error: Unexpected localWeatherDict contents for:', userZipcode) 
+                print('Error: Unexpected localWeatherDict contents for zipcode: "' + userZipcode + '"') 
             else:       
                 temperature =  localWeatherDict['current_observation']['temp_f']
                 city = localWeatherDict['current_observation']['display_location']['city']
@@ -81,8 +92,7 @@ def main():
                     highestDisplayString = '{}, {} {} has the highest temperature of {}F'.format(city, state, userZipcode, temperature)
                 displayString = 'The current temperature in {}, {} {} is {}F'.format(city, state, userZipcode, temperature)
                 print(displayString)
-    if highestDisplayString:
-        print('\n' + highestDisplayString)   
+    if highestDisplayString: print('\n' + highestDisplayString)   
     
         
 main()
