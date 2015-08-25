@@ -1,42 +1,97 @@
-''' Challenge 4.
-    Expand the weather tool to take in a comma-separated list of zip codes as user input. 
-    Validate that each user inputted item is a zip code and if it is, fetch the weather for
-    that zip and print it out the same way as before. Handle some obvious bad user input 
-    conditions. Once all the weather conditions have been displayed to the user, print out 
-    a line telling the user which of the inputed zip codes currently has the warmest weather.
+""" Challenge 5.
+    Objects! We will know be working with WeatherObjects to slowly move us
+    away from being dependent on just WeatherUnderground. Refactor your
+    code to have the same functionality as before but the api response
+    for each zip code should be converted to a WeatherObject.
 
-    The data set that should be accounted for includes this '94110,12345,80123,99999,abcde, 90040,4321'
+    Your WeatherObject needs to be a class that inits with a few properties
+    and a few methods. The WeatherObject needs to have:
+
+    a zip code property
+    a temperature property
+    a city property
+    a state property
+    a last updated property
+
+    For debugging, displaying your object in code through python's print
+    should display:
+    WeatherObject(Zip Code: <ZIP CODE HERE>, City <CITY HERE>,
+                 State <STATE HERE>Temperature: <TEMP HERE>)
+
+    Calling a new print_weather() method in this class should pretty print
+    the object to standard output but with a few additions as shown in the
+    screenshot. For debugging, anytime print_weather() is called, have it
+    also print the WeatherObject() info from the last paragraph.
+
+    The celsius value of the temperature should be calculated from the
+    temperature of the object and should not be set from any api response.
+"""
+
+
+from requests import get
+
+
+class Weather(object):
+    def __init__(self, localWeatherDict):
+        self.localWeatherDict = localWeatherDict
     
-    Output example:
-    Enter a comma separated list of zipcodes 23123,123123,123123
-    Feathing data for zipcode x....
-    The temperature in <city>, <State> (zip) is <temp_f>F
-    ...
-    invalid weather data for zipcode...
-    ....
-    invalid zipcode
-    ....
-    City, State (zip) has the warmest weather of temp
-'''
+    def __str__(self):
+        debugString = 'WeatherObject(Zip code: {}, City: {}, State: {}, Temperature: {})'
+        zip = self.getLocation('Zip Code')
+        city = self.getLocation('City')
+        state = self.getLocation('State')
+        temp = self.getTemp('F')
+        
+        return debugString.format(zip, city, state, temp)
+              
+    def getLocation(self, locationFormat=None):
+        if not locationFormat:
+            city = self.localWeatherDict['current_observation']['display_location']['city']
+            state = self.localWeatherDict['current_observation']['display_location']['state']
+            zip = self.localWeatherDict['current_observation']['display_location']['zip']
+            return city + ', ' + state + ' ' + zip
+        elif locationFormat == 'City':
+            return self.localWeatherDict['current_observation']['display_location']['city']
+        elif locationFormat == 'State':
+            return self.localWeatherDict['current_observation']['display_location']['state']
+        elif locationFormat == 'Zip Code':
+            return self.localWeatherDict['current_observation']['display_location']['zip']
+        else:
+            raise RuntimeError('getLocation(type) optional paramter is unexpected')
+    
+    def getTemp(self, tempFormat=None):
+        if not tempFormat:
+            return self.localWeatherDict['current_observation']['temperature_string']
+        elif tempFormat == 'F':
+            return self.localWeatherDict['current_observation']['temp_f']
+        elif tempFormat == 'C':
+            fTemp = self.localWeatherDict['current_observation']['temp_f']
+            mycTemp = (fTemp - 32) * (5 / 9)
+            mycTemp = format(mycTemp, '.1f')
+            return mycTemp
+        else:
+            raise RuntimeError('getTemp(format) optional paramter is unexpected')
+    
+    def lastUpdated(self):
+        return self.localWeatherDict['current_observation']['observation_time']      
 
-from requests import get, codes
 
 def get_weather_by_zipcode(zipcode):
-    '''Input zipcode int. Output json dict.'''
+    """Input zipcode int. Output json dict."""
     
     apiKey = 'ad2e2aeab6b3e474'
     apiCallURLTemplate = 'http://api.wunderground.com/api/{}/conditions/q/{}.json'
     apiCallURL = apiCallURLTemplate.format(apiKey, zipcode)
-    resultsDict = dict()
          
     results = get(apiCallURL)
     # ToDo: Need to handle a bad URL/Server down. Causes ugly error right now.
     
-    resultsDict =  results.json()
+    resultsDict = results.json()
     return resultsDict
 
+
 def is_valid_weather(jsonDict):
-    '''original function written was Mark P.'''
+    """original function written was Mark P."""
     if jsonDict is None:
         return False
     if 'current_observation' not in jsonDict:
@@ -51,16 +106,18 @@ def is_valid_weather(jsonDict):
     # All conditions met
     return True
 
+
 def is_valid_zipcode(zipcode):
     
-    if zipcode.isdigit() == False:
+    if not zipcode.isdigit():
         return False
     if len(zipcode) != 5:
         return False
     
     # All conditions met
     return True
-    
+
+
 def main():
     
     userZipcodeList = []
@@ -68,31 +125,46 @@ def main():
     highestDisplayString = ''
     
     userZipcodeString = input('Enter a comma separated list of zipcodes: ')
-    for str in userZipcodeString.split(','):
-        userZipcode = str.strip()
+    for string in userZipcodeString.split(','):
+        userZipcode = string.strip()
         if userZipcode: userZipcodeList.append(userZipcode)
      
     for userZipcode in userZipcodeList:
         
         # return error if unexpected format
-        if is_valid_zipcode(userZipcode) == False: 
-            print('Error: Unexpected zipcode fomrat: "' + userZipcode +'"')
+        if not is_valid_zipcode(userZipcode):
+            print('Error: Unexpected zipcode format: "' + userZipcode + '"')
         else:
             localWeatherDict = get_weather_by_zipcode(userZipcode)
-            
+                                    
             # return error if dict contents are unexpected 
-            if is_valid_weather(localWeatherDict) == False:
+            if not is_valid_weather(localWeatherDict):
                 print('Error: Unexpected localWeatherDict contents for zipcode: "' + userZipcode + '"') 
-            else:       
-                temperature =  localWeatherDict['current_observation']['temp_f']
-                city = localWeatherDict['current_observation']['display_location']['city']
-                state = localWeatherDict['current_observation']['display_location']['state'] 
-                if temperature > highestTemp:
-                    highestTemp = temperature
-                    highestDisplayString = '{}, {} {} has the highest temperature of {}F'.format(city, state, userZipcode, temperature)
-                displayString = 'The current temperature in {}, {} {} is {}F'.format(city, state, userZipcode, temperature)
-                print(displayString)
-    if highestDisplayString: print('\n' + highestDisplayString)   
-    
-        
+            else:
+                weatherObject = Weather(localWeatherDict)
+                tempF = weatherObject.getTemp('F')
+                tempC = weatherObject.getTemp('C')
+                city = weatherObject.getLocation('City')
+                state = weatherObject.getLocation('State')
+                lastUpdated = weatherObject.lastUpdated()
+                
+                if tempF > highestTemp:
+                    highestTemp = tempF
+                    highestDisplayString = '{}, {} {} has the highest temperature of {}F'.format(city,
+                                                                                                 state,
+                                                                                                 userZipcode,
+                                                                                                 tempF)
+
+                displayString = 'The current temperature in {}, {} {} is {}F ({}C) '.format(city,
+                                                                                            state,
+                                                                                            userZipcode,
+                                                                                            tempF,
+                                                                                            tempC)
+                print('Fetching data for zip code ' + userZipcode + '...')
+                print(weatherObject)
+                print(displayString, end='')
+                print('[' + lastUpdated + ']')
+
+    if highestDisplayString: print('\n' + highestDisplayString)
+
 main()
