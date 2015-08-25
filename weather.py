@@ -32,10 +32,14 @@ from requests import get
 
 
 class Weather(object):
+    """Creates a weather object from weather data dictionary."""
+    
     def __init__(self, localWeatherDict):
+    """Init with a dictionary. Currently Weather Underground is supported."""
         self.localWeatherDict = localWeatherDict
     
     def __str__(self):
+    """Overriding default print(Weather) behaviour for debugging"""
         debugString = 'WeatherObject(Zip code: {}, City: {}, State: {}, Temperature: {})'
         zip = self.getLocation('Zip Code')
         city = self.getLocation('City')
@@ -45,6 +49,11 @@ class Weather(object):
         return debugString.format(zip, city, state, temp)
               
     def getLocation(self, locationFormat=None):
+    """Method returns location data from the object.
+    
+    Keyword Parameter:
+    locationFormat -- type of location requested (default None)
+    """
         if not locationFormat:
             city = self.localWeatherDict['current_observation']['display_location']['city']
             state = self.localWeatherDict['current_observation']['display_location']['state']
@@ -60,6 +69,11 @@ class Weather(object):
             raise RuntimeError('getLocation(type) optional paramter is unexpected')
     
     def getTemp(self, tempFormat=None):
+    """Method returns temperature from the object.
+    
+    Keyword Parameter:
+    tempFormat -- type of units preferred (default None)
+    """
         if not tempFormat:
             return self.localWeatherDict['current_observation']['temperature_string']
         elif tempFormat == 'F':
@@ -73,11 +87,12 @@ class Weather(object):
             raise RuntimeError('getTemp(format) optional paramter is unexpected')
     
     def lastUpdated(self):
+    """Method returns time of the weather observation from the object"""
         return self.localWeatherDict['current_observation']['observation_time']      
 
 
 def get_weather_by_zipcode(zipcode):
-    """Input zipcode int. Output json dict."""
+    """Input zip code string. Output json dict."""
     
     apiKey = 'ad2e2aeab6b3e474'
     apiCallURLTemplate = 'http://api.wunderground.com/api/{}/conditions/q/{}.json'
@@ -108,6 +123,7 @@ def is_valid_weather(jsonDict):
 
 
 def is_valid_zipcode(zipcode):
+    """Simple zip code validator."""
     
     if not zipcode.isdigit():
         return False
