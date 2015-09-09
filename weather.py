@@ -1,10 +1,11 @@
 """ Program gets weather data from Weather Underground and Open Weather
-    Map by given zipcode. Also lists the hottest location.
+    Map by given zip code. Also lists the hottest location.
 """
 
 import requests
 import os
 import time
+import itertools
 
 # Overriding server time zone to user time zone.
 os.environ['TZ'] = 'US/Pacific'
@@ -21,10 +22,10 @@ class Weather(object):
         self.state = state
         self.lastUpdatedEpoch = lastUpdatedEpoch
         self.tempC = format((self.tempF - 32) * (5 / 9), '.1f')
-
+        self.lastUpdatedLocal = self.last_updated_local()
     def __str__(self):
-        debugString = 'WeatherObject(Source: {}, Zip code: {}, City: {}, State: {}, Temperature: {})'
-        return debugString.format(self.source, self.zipcode, self.city, self.state, self.tempF)
+        debugString = 'WeatherObject(Source: {}, Zip code: {}, City: {}, State: {}, Temperature: {} [Last Update: {}])'
+        return debugString.format(self.source, self.zipcode, self.city, self.state, self.tempF, self.lastUpdatedLocal)
         
     def print_weather(self):
         lastUpdatedLocal = self.last_updated_local()
@@ -36,7 +37,7 @@ class Weather(object):
                                         self.zipcode,
                                         self.tempF,
                                         self.tempC,
-                                        lastUpdatedLocal)
+                                        self.lastUpdatedLocal)
         else:
             displayString = '{}: The current temperature in {}, {} is {}F ({}C) [Last Update: {}] '
             return displayString.format(self.source,
@@ -101,6 +102,7 @@ def request_weather_by_zipcode(zipcode, source):
 
 def is_valid_weather_dict(jsonDict, source):
     """Check if weather dict contains expected data. """
+    
     if jsonDict is None:
         return False
     elif source == 'WU':
@@ -124,13 +126,13 @@ def is_valid_weather_dict(jsonDict, source):
     
 def create_weather_object(zipcode, source):
     """ Creates weather object for given zip code."""
-
+    errorString = 'Error: Unexpected', source, 'localWeatherDict contents for zipcode:"' + zipcode + '"'
     if source == 'WU':
         print('Fetching data for zip code', zipcode, 'from', source, '...')
         localWeatherDict = request_weather_by_zipcode(zipcode, source)
 
         if not is_valid_weather_dict(localWeatherDict, source):
-            print('Error: Unexpected', source, 'localWeatherDict contents for zipcode:"', zipcode, '"')
+            print(errorString)
         else:
             tempF = localWeatherDict['current_observation']['temp_f']
             city = localWeatherDict['current_observation']['display_location']['city']
@@ -143,7 +145,7 @@ def create_weather_object(zipcode, source):
         print('Fetching data for zip code', zipcode, 'from', source, '...')
         localWeatherDict = request_weather_by_zipcode(zipcode, source)
         if not is_valid_weather_dict(localWeatherDict, source):
-            print('Error: Unexpected', source, 'localWeatherDict contents for zipcode:"' + zipcode + '"')
+            print(errorString)
         else:
             tempF = localWeatherDict['main']['temp']
             city = localWeatherDict['name']
@@ -152,14 +154,19 @@ def create_weather_object(zipcode, source):
 
 
 def get_warmest_weather_string_from_weather_objects(weatherObjectsList):
+    """ Select object with highest temperature and construct output string.
+    """
     highestDisplayString = ''
     if not weatherObjectsList:
         return print('Error: weatherObjectsList is None')
+    
     # Setting first object as basis for iterative comparison.    
     highestTemp = weatherObjectsList[0].tempF
     for weatherObject in weatherObjectsList:
         if weatherObject.tempF >= highestTemp:
             highestTemp = weatherObject.tempF
+            
+            # Supporting object with and without State attribute
             if weatherObject.state:
                 highestDisplayString = '{}, {} {} has the highest temperature of {}F'
                 highestDisplayString = highestDisplayString.format(weatherObject.city,
@@ -175,26 +182,65 @@ def get_warmest_weather_string_from_weather_objects(weatherObjectsList):
 
     return highestDisplayString
 
-
+    
+def get_recent_weather_objects(weatherObjectsList):
+    """ Return a list of weather objects for same location where
+        lastUpdatedEpoch is most recent.
+    """
+    
+    if not weatherObjectsList:
+        return print('Error: weatherObjectsList is empty')
+    
+    recentWeatherObjectList = []
+    # Compare objects to each other
+    for weatherObject, weatherObjectOther in itertools.combinations_with_replacement(weatherObjectsList, 2):
+         # Compare only same zip codes from different sources.
+         if (weatherObject.zipcode == weatherObjectOther.zipcode and
+                weatherObject.source != weatherObjectOther.source):
+            # Append add most recent zip code
+            if weatherObject.lastUpdatedEpoch >= weatherObjectOther.lastUpdatedEpoch:
+                recentWeatherObjectList.append(weatherObject)
+            else:
+                recentWeatherObjectList.append(weatherObjectOther)
+        
+    zipCodeList = []
+    for weatherObject in recentWeatherObjectList:
+        zipCodeList.append(weatherObject.zipcode)
+    
+    # Catch a list with only one zip code or returned from only one source.
+    for weatherObject in weatherObjectsList:
+        if weatherObject.zipcode not in zipCodeList:
+            recentWeatherObjectList.append(weatherObject)
+    
+    if recentWeatherObjectList:
+        return recentWeatherObjectList
+    else:
+        return print('Error: recentWeatherObjectList is empty')
+    
+    
 def main():
     
+    # Get list of zipcodes from input.
     userZipcodeList = get_zip_codes_from_user()
+    
+    # Create weatherObject list and add WU and OWM objects.
     weatherObjectsList = []
-
     for userZipcode in userZipcodeList:
         weatherObject = create_weather_object(userZipcode, source='WU')
-
         if weatherObject:
             weatherObjectsList.append(weatherObject)
-        
         weatherObject = create_weather_object(userZipcode, source='OWM')
         if weatherObject:
             weatherObjectsList.append(weatherObject)
- 
     print('')
-    for weatherObject in weatherObjectsList:
+   
+    # Print most recent weather objects from weatherObjectsList.
+    recentWeatherObjectList = get_recent_weather_objects(weatherObjectsList)
+    for weatherObject in recentWeatherObjectList:
         print(weatherObject.print_weather())
     print('')
-    print(get_warmest_weather_string_from_weather_objects(weatherObjectsList))
     
+    # Print warmest weather
+    print(get_warmest_weather_string_from_weather_objects(recentWeatherObjectList))
+
 main()
