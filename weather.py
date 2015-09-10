@@ -7,6 +7,7 @@ import os
 import time
 import itertools
 
+
 # Overriding server time zone to user time zone.
 os.environ['TZ'] = 'US/Pacific'
 
@@ -22,13 +23,13 @@ class Weather(object):
         self.state = state
         self.lastUpdatedEpoch = lastUpdatedEpoch
         self.tempC = format((self.tempF - 32) * (5 / 9), '.1f')
-        self.lastUpdatedLocal = self.last_updated_local()
+
     def __str__(self):
         debugString = 'WeatherObject(Source: {}, Zip code: {}, City: {}, State: {}, Temperature: {} [Last Update: {}])'
-        return debugString.format(self.source, self.zipcode, self.city, self.state, self.tempF, self.lastUpdatedLocal)
+        return debugString.format(self.source, self.zipcode, self.city, self.state, self.tempF, self.last_updated_local())
         
     def print_weather(self):
-        lastUpdatedLocal = self.last_updated_local()
+        
         if self.state:
             displayString = '{}: The current temperature in {}, {} {} is {}F ({}C) [Last Update: {}] '
             return displayString.format(self.source,
@@ -37,7 +38,7 @@ class Weather(object):
                                         self.zipcode,
                                         self.tempF,
                                         self.tempC,
-                                        self.lastUpdatedLocal)
+                                        self.last_updated_local())
         else:
             displayString = '{}: The current temperature in {}, {} is {}F ({}C) [Last Update: {}] '
             return displayString.format(self.source,
@@ -45,7 +46,7 @@ class Weather(object):
                                         self.zipcode,
                                         self.tempF,
                                         self.tempC,
-                                        lastUpdatedLocal)
+                                        self.last_updated_local())
     
     def last_updated_local(self):
         lastUpdatedLocal = time.strftime("%B %d, %I:%M:%S %p %Z", time.localtime(self.lastUpdatedEpoch))
@@ -97,7 +98,7 @@ def request_weather_by_zipcode(zipcode, source):
         resultsDict = results.json()
         return resultsDict
     else:
-        print('Error: Unexpected http response status code:', results.status_code)
+        return print('Error: Unexpected http response status code:', results.status_code)
 
 
 def is_valid_weather_dict(jsonDict, source):
@@ -105,7 +106,8 @@ def is_valid_weather_dict(jsonDict, source):
     
     if jsonDict is None:
         return False
-    elif source == 'WU':
+        
+    if source == 'WU':
         if 'current_observation' not in jsonDict:
             return False
         if 'temp_f' not in jsonDict['current_observation']:
@@ -119,38 +121,41 @@ def is_valid_weather_dict(jsonDict, source):
             return False
         if 'temp' not in jsonDict['main']:
             return False
-
+    else:
+        # Catch for source being unexpected/missing
+        return False
+            
     # All conditions met
     return True
-
     
+            
 def create_weather_object(zipcode, source):
     """ Creates weather object for given zip code."""
-    errorString = 'Error: Unexpected', source, 'localWeatherDict contents for zipcode:"' + zipcode + '"'
-    if source == 'WU':
+    if source in ['WU', 'OWM']:
         print('Fetching data for zip code', zipcode, 'from', source, '...')
         localWeatherDict = request_weather_by_zipcode(zipcode, source)
-
-        if not is_valid_weather_dict(localWeatherDict, source):
-            print(errorString)
-        else:
+    else:
+        return print('Error: source parameter unexpected/missing')
+    
+    if is_valid_weather_dict(localWeatherDict, source):
+        if source == 'WU':
             tempF = localWeatherDict['current_observation']['temp_f']
             city = localWeatherDict['current_observation']['display_location']['city']
             state = localWeatherDict['current_observation']['display_location']['state']
-            lastUpdatedEpoch = float(localWeatherDict['current_observation']['observation_epoch']) 
+            lastUpdatedEpoch = float(localWeatherDict['current_observation']['observation_epoch'])
             weatherObject = Weather(source, zipcode, tempF, city, state, lastUpdatedEpoch)
-            return weatherObject
-
-    if source == 'OWM':
-        print('Fetching data for zip code', zipcode, 'from', source, '...')
-        localWeatherDict = request_weather_by_zipcode(zipcode, source)
-        if not is_valid_weather_dict(localWeatherDict, source):
-            print(errorString)
-        else:
+        elif source == 'OWM':
             tempF = localWeatherDict['main']['temp']
             city = localWeatherDict['name']
-            weatherObject = Weather(source, zipcode, tempF, city, lastUpdatedEpoch=float(localWeatherDict['dt']))         
-            return weatherObject
+            lastUpdatedEpoch = float(localWeatherDict['dt'])
+            weatherObject = Weather(source, zipcode, tempF, city, lastUpdatedEpoch=lastUpdatedEpoch)
+    else:
+        return print('Error: Unexpected', source, 'localWeatherDict contents for zipcode:"' + zipcode + '"')
+
+    if weatherObject:
+        return weatherObject
+    else:
+        return None
 
 
 def get_warmest_weather_string_from_weather_objects(weatherObjectsList):
@@ -192,12 +197,12 @@ def get_recent_weather_objects(weatherObjectsList):
         return print('Error: weatherObjectsList is empty')
     
     recentWeatherObjectList = []
-    # Compare objects to each other
-    for weatherObject, weatherObjectOther in itertools.combinations_with_replacement(weatherObjectsList, 2):
+    # Compare objects to each other without duplication
+    for weatherObject, weatherObjectOther in itertools.combinations(weatherObjectsList, 2):
          # Compare only same zip codes from different sources.
          if (weatherObject.zipcode == weatherObjectOther.zipcode and
                 weatherObject.source != weatherObjectOther.source):
-            # Append add most recent zip code
+            # Add most recent zip code to the recent objects list.
             if weatherObject.lastUpdatedEpoch >= weatherObjectOther.lastUpdatedEpoch:
                 recentWeatherObjectList.append(weatherObject)
             else:
@@ -220,7 +225,7 @@ def get_recent_weather_objects(weatherObjectsList):
     
 def main():
     
-    # Get list of zipcodes from input.
+    # Get list of zip codes from input.
     userZipcodeList = get_zip_codes_from_user()
     
     # Create weatherObject list and add WU and OWM objects.
