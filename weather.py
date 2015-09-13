@@ -192,8 +192,11 @@ def is_valid_weather_dict(jsonDict, source):
     elif source == 'OWM':
         if 'name' not in jsonDict:
             return False
+        if 'dt' not in jsonDict:
+            return False
         if 'temp' not in jsonDict['main']:
             return False
+
     else:
         # Catch for source being unexpected/missing
         return False
@@ -305,7 +308,7 @@ def get_recent_weather_objects(weatherObjectsList):
         return print('Error: recentWeatherObjectList is empty')
 
 
-def main():
+def parse_cli_args():
     # Set up command line argument parsing
     parser = argparse.ArgumentParser(description='Weather Challenge')
     parser.add_argument('-zl', '--zipCodeList', help='Provide a list of comma separated zip codes', required=False, metavar='')
@@ -313,6 +316,11 @@ def main():
                         metavar='')
     args = vars(parser.parse_args())
 
+    return args
+
+
+def create_zip_code_list(args):
+    """:rtype: list"""
     if args['zipCodeList'] and args['zipCodeFile']:
         return print('Error: Only one optional argument expected. Use -h for help.')
     if args['zipCodeList']:
@@ -325,6 +333,13 @@ def main():
     else:
         # Get list of zip codes from input.
         zipCodeList = get_zip_codes_from_input()
+    return zipCodeList
+
+
+def main():
+
+    args = parse_cli_args()
+    zipCodeList = create_zip_code_list(args)
 
     # Create weatherObject list and add WU and OWM objects.
     weatherObjectsList = []
