@@ -308,20 +308,20 @@ def get_recent_weather_objects(weatherObjectsList):
 def main():
     # Set up command line argument parsing
     parser = argparse.ArgumentParser(description='Weather Challenge')
-    parser.add_argument('-zl', help='Provide a list of comma separated zip codes', default=None, metavar='')
-    parser.add_argument('-zf', help='Provide a file name containing a list of comma separated zip codes', default=None,
+    parser.add_argument('-zl', '--zipCodeList', help='Provide a list of comma separated zip codes', required=False, metavar='')
+    parser.add_argument('-zf', '--zipCodeFile', help='Provide a file name containing a list of comma separated zip codes', required=False,
                         metavar='')
-    args = parser.parse_args()
+    args = vars(parser.parse_args())
 
-    if args.zl and args.zf:
+    if args['zipCodeList'] and args['zipCodeFile']:
         return print('Error: Only one optional argument expected. Use -h for help.')
-    if args.zl:
+    if args['zipCodeList']:
         # zipCodeList was supplied on the command line
 
-        zipCodeList = get_zip_codes_from_cli(args.zl)
-    elif args.zf:
+        zipCodeList = get_zip_codes_from_cli(args['zipCodeList'])
+    elif args['zipCodeFile']:
         # zipCode list was supplied in a file
-        zipCodeList = get_zip_codes_from_file(args.zf)
+        zipCodeList = get_zip_codes_from_file(args['zipCodeFile'])
     else:
         # Get list of zip codes from input.
         zipCodeList = get_zip_codes_from_input()
