@@ -7,7 +7,7 @@ import os
 import time
 import itertools
 import argparse
-
+import sys
 
 # Overriding server time zone to user time zone.
 os.environ['TZ'] = 'US/Pacific'
@@ -75,6 +75,7 @@ def get_zip_codes_from_input():
                     inputZipcodeList.append(inputZipcode)
             else:
                 print('Error: Unexpected zipcode format: "' + inputZipcode + '"')
+
     return inputZipcodeList
 
 
@@ -93,7 +94,7 @@ def get_zip_codes_from_cli(cliZipCodeString):
                     cliZipCodeList.append(cliZipCode)
             else:
                 print('Error: Unexpected zipcode format: "' + cliZipCode + '"')
-    if len(cliZipCodeList) > 0:
+    if cliZipCodeList:
         return cliZipCodeList
     else:
         print('Warning: You did not provide any valid zip codes via CLI. You can enter zip code(s) manually.')
@@ -230,7 +231,6 @@ def create_weather_object(zipcode, source):
             lastUpdatedEpoch = float(localWeatherDict['dt'])
             weatherObject = Weather(source, zipcode, tempF, city, lastUpdatedEpoch=lastUpdatedEpoch)
     else:
-
         return print('Error: Unexpected', source, 'localWeatherDict contents for zipcode:"' + zipcode + '"')
 
     if weatherObject:
@@ -309,11 +309,15 @@ def get_recent_weather_objects(weatherObjectsList):
 
 
 def parse_cli_args():
+    """:rtype: dict"""
     # Set up command line argument parsing
     parser = argparse.ArgumentParser(description='Weather Challenge')
-    parser.add_argument('-zl', '--zipCodeList', help='Provide a list of comma separated zip codes', required=False, metavar='')
-    parser.add_argument('-zf', '--zipCodeFile', help='Provide a file name containing a list of comma separated zip codes', required=False,
-                        metavar='')
+    parser.add_argument('-zl', '--zipCodeList',
+                        help='Provide a list of comma separated zip codes',
+                        required=False, metavar='')
+    parser.add_argument('-zf', '--zipCodeFile',
+                        help='Provide a file name containing a list of comma separated zip codes',
+                        required=False, metavar='')
     args = vars(parser.parse_args())
 
     return args
@@ -322,7 +326,8 @@ def parse_cli_args():
 def create_zip_code_list(args):
     """:rtype: list"""
     if args['zipCodeList'] and args['zipCodeFile']:
-        return print('Error: Only one optional argument expected. Use -h for help.')
+        sys.exit('Error: Only one optional argument expected. Use -h for help.')
+
     if args['zipCodeList']:
         # zipCodeList was supplied on the command line
 
@@ -333,7 +338,11 @@ def create_zip_code_list(args):
     else:
         # Get list of zip codes from input.
         zipCodeList = get_zip_codes_from_input()
-    return zipCodeList
+
+    if zipCodeList:
+        return zipCodeList
+    else:
+        sys.exit('Error: zipCodeList is None')
 
 
 def main():
