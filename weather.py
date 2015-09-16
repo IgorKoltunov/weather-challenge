@@ -8,9 +8,13 @@ import time
 import itertools
 import argparse
 import sys
+import logging
 
 # Overriding server time zone to user time zone.
 os.environ['TZ'] = 'US/Pacific'
+
+# Specify Maximum zip codes allowed
+MAX_ZIP_CODES_ALLOWED = 10
 
 
 class Weather(object):
@@ -61,9 +65,10 @@ class Weather(object):
 
 def get_zip_codes_from_input():
     """ Returns a list of zip codes from input.
-    :rtype: list
-    """
 
+    :return: list
+    """
+    logging.info('Requesting zip codes from input().')
     inputZipcodeList = []
     inputZipcodeString = input('Enter a comma separated list of zip codes (ex. 91801, 94107): ')
     for string in inputZipcodeString.split(','):
@@ -74,6 +79,7 @@ def get_zip_codes_from_input():
                 if inputZipcode not in inputZipcodeList:
                     inputZipcodeList.append(inputZipcode)
             else:
+                logging.error('Error: Unexpected zipcode format: "{}".'.format(inputZipcode))
                 print('Error: Unexpected zipcode format: "' + inputZipcode + '"')
 
     return inputZipcodeList
@@ -81,9 +87,10 @@ def get_zip_codes_from_input():
 
 def get_zip_codes_from_cli(cliZipCodeString):
     """ Returns a list of zip codes from command line interface.
-    :rtype: list
+
+    :return: list
     """
-    print('Parsing zip codes from the command line...')
+    logging.info('Parsing zip codes from the command line.')
     cliZipCodeList = []
     for string in cliZipCodeString.split(','):
         # Remove leading and trailing spaces, if any
@@ -93,10 +100,12 @@ def get_zip_codes_from_cli(cliZipCodeString):
                 if cliZipCode not in cliZipCodeList:
                     cliZipCodeList.append(cliZipCode)
             else:
+                logging.error('Unexpected zipcode format: "{}".'.format(cliZipCode))
                 print('Error: Unexpected zipcode format: "' + cliZipCode + '"')
     if cliZipCodeList:
         return cliZipCodeList
     else:
+        logging.warning('No valid zip codes provided via command line arguments. Falling back to input().')
         print('Warning: You did not provide any valid zip codes via CLI. You can enter zip code(s) manually.')
         inputZipCodeList = get_zip_codes_from_input()
         return inputZipCodeList
@@ -104,14 +113,16 @@ def get_zip_codes_from_cli(cliZipCodeString):
 
 def get_zip_codes_from_file(zipCodeFilePath):
     """ Returns a list of zip codes from specified file.
-        :rtype: list
+
+        :return: list
     """
     if not os.path.isfile(zipCodeFilePath):
+        logging.warning('File ({}) is not found. Falling back to input().'.format(zipCodeFilePath))
         print('Warning: File (' + zipCodeFilePath + ') is not found. You can enter zip code(s) manually.')
         inputZipCodeList = get_zip_codes_from_input()
         return inputZipCodeList
-
-    print('Parsing zip codes from the zipCodeFile...')
+    
+    logging.info('Parsing zip codes from the zipCodeFile.')
     fileZipCodeList = []
     with open(zipCodeFilePath, 'r') as zipCodeFile:
         lineList = zipCodeFile.read().splitlines()
@@ -125,25 +136,31 @@ def get_zip_codes_from_file(zipCodeFilePath):
                     if fileZipCode not in fileZipCodeList:
                         fileZipCodeList.append(fileZipCode)
                 else:
+                    logging.error('Unexpected zipcode format: "{}".'.format(fileZipCode))
                     print('Error: Unexpected zipcode format: "' + fileZipCode + '"')
 
-    if len(fileZipCodeList) > 0:
+    if fileZipCodeList:
         return fileZipCodeList
     else:
+        logging.warning('File ({}) did not contain any valid zip codes. '
+                        'Falling back to input().'.format(zipCodeFilePath))
         print('Warning: File (' + zipCodeFilePath + ') did not contain any valid zip codes. '
                                                     'You can enter zip code(s) manually.')
         inputZipCodeList = get_zip_codes_from_input()
         return inputZipCodeList
 
 
-def is_valid_zipcode(zipcode):
+def is_valid_zipcode(zipCode):
     """ Validate a zip code string.
-        :rtype: bool
+
+        :return: bool
     """
 
-    if not zipcode.isdigit():
+    if not zipCode.isdigit():
+        logging.debug('Zip code ({}) is not all digits.'.format(zipCode))
         return False
-    if len(zipcode) != 5:
+    if len(zipCode) != 5:
+        logging.debug('Zip code ({}) is not 5 digits.'.format(zipCode))
         return False
 
     # All conditions met
@@ -152,32 +169,37 @@ def is_valid_zipcode(zipcode):
 
 def request_weather_by_zipcode(zipcode, source):
     """ Input zip code string and source. Return json weather dictionary.
-        :rtype: dict
-    """
 
+        :return: dict
+    """
+    
     if source == 'WU':
         apiCallURLTemplate = 'http://api.wunderground.com/api/ad2e2aeab6b3e474/conditions/q/{}.json'
     elif source == 'OWM':
         apiCallURLTemplate = ('http://api.openweathermap.org/data/2.5/weather?zip={},'
                               'us&units=imperial&APPID=054e25024677f112bd568c62ca61d79c')
     else:
-        return print('Error: get_weather_by_zipcode supports only WU or OWM as source')
+        logging.error('Only WU or OWM supported as API source. Provided:"{}"'.format(source))
+        return None
 
     apiCallURL = apiCallURLTemplate.format(zipcode)
+    logging.debug('Making API call: "{}"'.format(apiCallURL))
     results = requests.get(apiCallURL)
     # Checking http response code.
     if results.status_code == 200:
         resultsDict = results.json()
         return resultsDict
     else:
-        return print('Error: Unexpected http response status code:', results.status_code)
+        logging.error('Unexpected http response status code:"{}"'.format(results.status_code))
+        return None
 
 
 def is_valid_weather_dict(jsonDict, source):
     """Check if weather dict contains expected data.
-        :rtype: bool
-    """
 
+        :return: bool
+    """
+    # ToDo: Add debug logging to function
     if jsonDict is None:
         return False
 
@@ -208,12 +230,13 @@ def is_valid_weather_dict(jsonDict, source):
 
 def create_weather_object(zipcode, source):
     """ Creates weather object for given zip code.
-        :rtype: object
+
+        :return: object
     """
 
     weatherObject = None
     if source in ['WU', 'OWM']:
-        print('Fetching data for zip code', zipcode, 'from', source, '...')
+        logging.info('Fetching data for zip code {} from {}.'.format(zipcode, source))
         localWeatherDict = request_weather_by_zipcode(zipcode, source)
     else:
         return print('Error: source parameter unexpected/missing')
@@ -241,7 +264,8 @@ def create_weather_object(zipcode, source):
 
 def get_warmest_weather_string_from_weather_objects(weatherObjectsList):
     """ Select object with highest temperature and construct output string.
-        :rtype: string
+
+        :return: string
     """
     # ToDo: handle the case where there is only one object
 
@@ -275,14 +299,17 @@ def get_warmest_weather_string_from_weather_objects(weatherObjectsList):
 def get_recent_weather_objects(weatherObjectsList):
     """ Compile a list of weather objects for same location where
         lastUpdatedEpoch is most recent.
-        :rtype: list
+
+        :return: list
     """
 
     if not weatherObjectsList:
-        return print('Error: weatherObjectsList is empty')
-
+        logging.error('weatherObjectsList is empty')
+        return None
+    
+    logging.debug('Comparing Weather Objects to pick latest.')
     recentWeatherObjectList = []
-    # Compare objects to each other without duplication
+    # Compare objects to each other without duplication.
     for weatherObject, weatherObjectOther in itertools.combinations(weatherObjectsList, 2):
         # Compare only same zip codes from different sources.
         if (weatherObject.zipcode == weatherObjectOther.zipcode and
@@ -305,49 +332,126 @@ def get_recent_weather_objects(weatherObjectsList):
     if recentWeatherObjectList:
         return recentWeatherObjectList
     else:
-        return print('Error: recentWeatherObjectList is empty')
+        logging.error('recentWeatherObjectList is empty')
+        return None
 
 
 def parse_cli_args():
-    """:rtype: dict"""
-    # Set up command line argument parsing
+    """ Setup command line arguments.
+    
+        :return: dict
+    """
+     
     parser = argparse.ArgumentParser(description='Weather Challenge')
     parser.add_argument('-zl', '--zipCodeList',
-                        help='Provide a list of comma separated zip codes',
+                        help='Provide a list of comma separated zip codes.',
                         required=False, metavar='')
     parser.add_argument('-zf', '--zipCodeFile',
-                        help='Provide a file name containing a list of comma separated zip codes',
+                        help='Provide a file name containing a list of comma separated zip codes.',
                         required=False, metavar='')
+    parser.add_argument('-v', '--verbose',
+                        help='Set flag to see verbose output in weather.log file.',
+                        required=False, action='store_true')
+    parser.add_argument('-d', '--debug',
+                        help='Specify this flag to see verbose output.',
+                        required=False, action='store_true')
     args = vars(parser.parse_args())
 
     return args
 
 
 def create_zip_code_list(args):
-    """:rtype: list"""
+    """ Create a list of zip codes based on command line arguments or input.
+        
+        :return: list
+    """
     if args['zipCodeList'] and args['zipCodeFile']:
+        logging.error('Both --zipCodeList and --zipCodeFile command line arguments provided.')
         sys.exit('Error: Only one optional argument expected. Use -h for help.')
 
     if args['zipCodeList']:
         # zipCodeList was supplied on the command line
-
+        logging.debug('zipCodeList was supplied as command line argument')
         zipCodeList = get_zip_codes_from_cli(args['zipCodeList'])
     elif args['zipCodeFile']:
         # zipCode list was supplied in a file
+        logging.debug('zipCodeList was supplied as a file on the command line.')
         zipCodeList = get_zip_codes_from_file(args['zipCodeFile'])
     else:
         # Get list of zip codes from input.
+        logging.debug('zipCode list was not provided on the command line. Getting from input().')
         zipCodeList = get_zip_codes_from_input()
 
     if zipCodeList:
-        return zipCodeList
+        restrictedZipCodeList = restrict_zip_code_list_to_max_len(zipCodeList)
+        return restrictedZipCodeList
     else:
-        sys.exit('Error: zipCodeList is None')
+        logging.critical('zipCodeList is None. Exiting.')
+        sys.exit(1)
 
 
+def restrict_zip_code_list_to_max_len(zipCodeList): 
+    """ Check number of requested zip codes against maximum allowed.
+        
+        :return: list
+    """
+    numZipCodes = len(zipCodeList)
+    if numZipCodes > MAX_ZIP_CODES_ALLOWED:
+        # Zip Code List is over the allowed limit. Trim to conform.
+        errorStringTemplate = ('Too many unique zip codes requested ({}). ' 
+                               'Getting data for max allowed ({}).')
+                               
+        logging.error(errorStringTemplate.format(numZipCodes, MAX_ZIP_CODES_ALLOWED))
+        allowedIndex = 0
+        restrictedZipCodeList = []   
+        
+        while allowedIndex < MAX_ZIP_CODES_ALLOWED:
+            restrictedZipCodeList.append(zipCodeList[allowedIndex])
+            allowedIndex += 1 
+        return restrictedZipCodeList
+    else:
+        # Zip Code List is under max allowed. No changes needed.
+        return zipCodeList
+
+
+def setup_logging(args):
+    """ Setup logging and set level and options based on command line input.
+    
+        :return: None
+    """
+    
+    if args['verbose'] and args['debug']:
+        sys.exit('Error: Only one optional flag expected. Use -h for help.')
+    
+    # If -v flag is used: set logging level to DEBUG and write log to file.
+    if args['verbose']:
+        logging.basicConfig(format='%(asctime)s - %(funcName)s - %(levelname)s: %(message)s',
+                            filename='weather.log', level=logging.DEBUG)
+    
+    # If -d flag is used: set logging level to DEBUG and write to output.
+    if args['debug']:
+        logging.basicConfig(format='%(asctime)s - %(funcName)s - %(levelname)s: %(message)s',
+                            level=logging.DEBUG)                          
+
+    # If no flags are used: set logging level to WARNING and write log to file.
+    else:
+        logging.basicConfig(format='%(asctime)s - %(funcName)s - %(levelname)s: %(message)s',
+                            filename='weather.log', level=logging.WARNING)
+    
+    # Setting requests library specific logging level
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.debug('Logging is ready for use.')
+
+        
 def main():
-
+    
+    # Parse Command Line Arguments
     args = parse_cli_args()
+    
+    # Set up logging
+    setup_logging(args)
+
+    # Compile zip code list 
     zipCodeList = create_zip_code_list(args)
 
     # Create weatherObject list and add WU and OWM objects.
@@ -369,6 +473,8 @@ def main():
 
     # Print warmest weather
     print(get_warmest_weather_string_from_weather_objects(recentWeatherObjectList))
-
+    
+    # Log normal program finish
+    logging.debug('Program execution finished')
 
 main()
