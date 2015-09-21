@@ -66,7 +66,7 @@ class Weather(object):
 def get_zip_codes_from_input():
     """ Returns a list of zip codes from input.
 
-    :return: list
+    :rtype: list
     """
     logging.info('Requesting zip codes from input().')
     inputZipcodeList = []
@@ -88,7 +88,7 @@ def get_zip_codes_from_input():
 def get_zip_codes_from_cli(cliZipCodeString):
     """ Returns a list of zip codes from command line interface.
 
-    :return: list
+    :rtype: list
     """
     logging.info('Parsing zip codes from the command line.')
     cliZipCodeList = []
@@ -114,7 +114,7 @@ def get_zip_codes_from_cli(cliZipCodeString):
 def get_zip_codes_from_file(zipCodeFilePath):
     """ Returns a list of zip codes from specified file.
 
-        :return: list
+        :rtype: list
     """
     if not os.path.isfile(zipCodeFilePath):
         logging.warning('File ({}) is not found. Falling back to input().'.format(zipCodeFilePath))
@@ -153,7 +153,7 @@ def get_zip_codes_from_file(zipCodeFilePath):
 def is_valid_zipcode(zipCode):
     """ Validate a zip code string.
 
-        :return: bool
+        :rtype: bool
     """
 
     if not zipCode.isdigit():
@@ -162,7 +162,9 @@ def is_valid_zipcode(zipCode):
     if len(zipCode) != 5:
         logging.debug('Zip code ({}) is not 5 digits.'.format(zipCode))
         return False
-
+    if zipCode < '00501' or zipCode > '99950':
+        logging.debug('Zip code ({}) is not within expected range'.format(zipCode))
+        return False
     # All conditions met
     return True
 
@@ -170,7 +172,7 @@ def is_valid_zipcode(zipCode):
 def request_weather_by_zipcode(zipcode, source):
     """ Input zip code string and source. Return json weather dictionary.
 
-        :return: dict
+        :rtype: dict
     """
     
     if source == 'WU':
@@ -197,7 +199,7 @@ def request_weather_by_zipcode(zipcode, source):
 def is_valid_weather_dict(jsonDict, source):
     """Check if weather dict contains expected data.
 
-        :return: bool
+        :rtype: bool
     """
     # ToDo: Add debug logging to function
     if jsonDict is None:
@@ -231,7 +233,7 @@ def is_valid_weather_dict(jsonDict, source):
 def create_weather_object(zipcode, source):
     """ Creates weather object for given zip code.
 
-        :return: object
+        :rtype: object
     """
 
     weatherObject = None
@@ -265,7 +267,7 @@ def create_weather_object(zipcode, source):
 def get_warmest_weather_string_from_weather_objects(weatherObjectsList):
     """ Select object with highest temperature and construct output string.
 
-        :return: string
+        :rtype: string
     """
     # ToDo: handle the case where there is only one object
 
@@ -300,7 +302,8 @@ def get_recent_weather_objects(weatherObjectsList):
     """ Compile a list of weather objects for same location where
         lastUpdatedEpoch is most recent.
 
-        :return: list
+    :rtype: list
+    
     """
 
     if not weatherObjectsList:
@@ -339,7 +342,7 @@ def get_recent_weather_objects(weatherObjectsList):
 def parse_cli_args():
     """ Setup command line arguments.
     
-        :return: dict
+        :rtype: dict
     """
      
     parser = argparse.ArgumentParser(description='Weather Challenge')
@@ -363,7 +366,7 @@ def parse_cli_args():
 def create_zip_code_list(args):
     """ Create a list of zip codes based on command line arguments or input.
         
-        :return: list
+        :rtype: list
     """
     if args['zipCodeList'] and args['zipCodeFile']:
         logging.error('Both --zipCodeList and --zipCodeFile command line arguments provided.')
@@ -387,13 +390,13 @@ def create_zip_code_list(args):
         return restrictedZipCodeList
     else:
         logging.critical('zipCodeList is None. Exiting.')
-        sys.exit(1)
+        sys.exit('No valid zip codes have been provided.')
 
 
 def restrict_zip_code_list_to_max_len(zipCodeList): 
     """ Check number of requested zip codes against maximum allowed.
         
-        :return: list
+        :rtype: list
     """
     numZipCodes = len(zipCodeList)
     if numZipCodes > MAX_ZIP_CODES_ALLOWED:
@@ -417,7 +420,7 @@ def restrict_zip_code_list_to_max_len(zipCodeList):
 def setup_logging(args):
     """ Setup logging and set level and options based on command line input.
     
-        :return: None
+        :rtype: None
     """
     
     if args['verbose'] and args['debug']:
@@ -442,10 +445,30 @@ def setup_logging(args):
     logging.getLogger('requests').setLevel(logging.WARNING)
     logging.debug('Logging is ready for use.')
 
-        
+
+def create_weather_object_list(zipCodeList, sourceList):
+    """ Create weather object list based on zip code and source list.
+
+    :rtype: list
+    """
+
+    weatherObjectsList = []
+    for zipCode in zipCodeList:
+        for source in sourceList:
+            weatherObject = create_weather_object(zipCode, source)
+            if weatherObject:
+                weatherObjectsList.append(weatherObject)  
+    
+    if not weatherObjectsList:
+        logging.critical('No valid weather objects in the weatherObjectsList')
+        sys.exit('Error: No valid weather returned')
+    
+    return weatherObjectsList
+
+
 def main():
     
-    # Parse Command Line Arguments
+    # Parse Command Line Arguments into a dictionary.
     args = parse_cli_args()
     
     # Set up logging
@@ -453,16 +476,9 @@ def main():
 
     # Compile zip code list 
     zipCodeList = create_zip_code_list(args)
-
+    
     # Create weatherObject list and add WU and OWM objects.
-    weatherObjectsList = []
-    for zipCode in zipCodeList:
-        weatherObject = create_weather_object(zipCode, source='WU')
-        if weatherObject:
-            weatherObjectsList.append(weatherObject)
-        weatherObject = create_weather_object(zipCode, source='OWM')
-        if weatherObject:
-            weatherObjectsList.append(weatherObject)
+    weatherObjectsList = create_weather_object_list(zipCodeList, ['WU', 'OWM'])
     print('')
 
     # Print most recent weather objects from weatherObjectsList.
