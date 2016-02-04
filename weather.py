@@ -1,5 +1,6 @@
 """ Program gets weather data from Weather Underground and Open Weather
     Map by given zip code. Also lists the hottest location.
+    
 """
 
 import requests
